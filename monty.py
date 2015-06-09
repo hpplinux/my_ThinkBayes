@@ -31,5 +31,5 @@ hypos = 'ABC'
 pmf = Monty(hypos)
 pmf.Update('B')
 
-for hypo, prob in pmf.Items():
+for hypo, prob in sorted(pmf.Items()):
 	print hypo, prob

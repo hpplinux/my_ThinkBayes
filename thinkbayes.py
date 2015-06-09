@@ -162,3 +162,27 @@ class Pmf(_DictWrapper):
 			self.d[x] *= factor
 
 		return total
+
+
+
+class Suite(Pmf):
+	
+	def Update(self, data):
+		for hypo in self.Values():
+			like = self.Likelihood(data, hypo)
+			self.Mult(hypo, like)
+		return self.Normalize()
+
+	def UpdateSet(self, dataset):
+		for data in dataset:
+			for hypo in self.Values():
+				like = self.Likelihood(data, hypo)
+				self.Mult(hypo, like)
+		return self.Normalize()
+
+	def Likelihood(self, data, hypo):
+		raise UnimplementMethodException()
+
+	def Print(self):
+		for hypo, prob in sorted(self.Items()):
+			print hypo, prob
