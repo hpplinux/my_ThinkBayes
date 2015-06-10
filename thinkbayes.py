@@ -1,4 +1,6 @@
-import bisect
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import bisect  #bisect用于操作排序的数组
 import copy
 import logging
 import math
@@ -163,6 +165,55 @@ class Pmf(_DictWrapper):
 
 		return total
 
+	def MaximumLikelihood(self):
+		prob, val = max((prob, val) for val, prob in self.Items())
+		return val
+
+	def Mean(self):
+		mu = 0.0
+		for x, p in self.d.iteritems():
+			mu += p * x
+		return mu
+	
+	def MakeCdf(self, name=None):
+		return MakeCdfFromPmf(self, name=name)
+
+
+def Percentile(pmf, percentage):
+	p = percentage / 100.0
+	total = 0
+	for val, prob in pmf.Items():
+		total += prob
+		if total >= p:
+			return val
+
+def CredibleInterval(pmf, percentage=90):
+	cdf = pmf.MakeCdf()
+	prob = (1 - percentage / 100.0) / 2
+	interval = cdf.Value(prob), cdf.Value(1-prob)
+	return interval
+
+def MakeCdfFromPmf(pmf, name=None):
+	if name == None:
+		name = pmf.name
+	return MakeCdfFromItems(pmf.Items(), name)
+
+def MakeCdfFromItems(items, name=''):
+	runsum = 0
+	xs = []
+	cs = []
+
+	for value, count in sorted(items):
+		runsum += count
+		xs.append(value)
+		cs.append(runsum)
+	
+	total = float(runsum)
+	ps = [c/total for c in cs]
+
+	cdf = Cdf(xs, ps, name)
+	return cdf
+
 
 
 class Suite(Pmf):
@@ -186,3 +237,107 @@ class Suite(Pmf):
 	def Print(self):
 		for hypo, prob in sorted(self.Items()):
 			print hypo, prob
+
+
+
+class Cdf(object):
+	"""
+	Attributes:
+		xs: sequence of values
+		ps: sequence of probabilities
+		name: string used as a graph label.
+	"""
+
+	def __init__(self, xs=None, ps=None, name=''):
+		self.xs = [] if xs is None else xs
+		self.ps = [] if ps is None else ps
+		self.name = name
+
+	def Copy(self, name=None):
+		if name is None:
+			name = self.name
+		return Cdf(list(self.xs), list(self.ps), name)
+
+	def MakePmf(self, name=None):
+		return MakePmfFromCdf(slef, name=name)
+
+	def Values(self):
+		return self.xs
+
+	def Items(self):
+		return zip(self.xs, self.ps)
+	
+	def Append(self, x, p):
+		self.xs.append(x)
+		self.ps.append(p)
+
+	def Shift(self, term):
+		"""Adds a term to the xs.
+		term: how much to add
+		"""
+		new = self.Copy()
+		new.xs = [x + term for x in self.xs]
+		return new
+
+	def Scale(self, factor):
+		new = self.Copy()
+		new.xs = [x * factor for x in self.xs]
+		return new
+
+	def Prob(slef, x):
+		if x < self.xs[0]:
+			return 0.0
+		index = bisect.bisect(self.xs, x)
+		#查找该数值将会插入的位置并返回，而不会插入。
+		p = self.ps[index - 1]
+		return p
+
+	def Value(self, p):
+		if p<0 or p>1:
+			raise ValueError('Probability p must be in range [0, 1]')
+
+		if p == 0:
+			return self.xs[0]
+		if p == 1:
+			return self.xs[-1]
+		index = bisect.bisect(self.ps, p)
+		if p == self.xs[index - 1]:
+			return self.xs[index - 1]
+		else:
+			return self.xs[index]
+
+	def Percentile(self, p):
+		return self.Value(p/100.0)
+
+	def Ramdom(self):
+		return self.Value(random.random())
+
+	def Sample(self,n):
+		return [self.Random() for i in range(n)]
+
+	def Mean(self):
+		old_p = 0.0
+		total = 0.0
+		for x, new_p in zip(self.xs, self.ps):
+			p = new_p - old_p
+			total += p * x
+			old_p = new_p
+		return total
+
+
+
+
+
+
+
+def MakePmfFromCdf(cdf, name):
+	if name is None:
+		name = cdf.name
+	pmf = Pmf(name=name)
+
+	prev = 0.0
+	for val, prob in cdf.Items():
+		pmf.Inrc(val, prob - prev)
+		prev = prob
+	
+	return pmf
